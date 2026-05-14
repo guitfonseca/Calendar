@@ -64,6 +64,7 @@ grid-template-columns:54px repeat(7,1fr);
 border:2px solid var(–border);border-radius:8px;overflow:hidden;
 background:var(–border);gap:1px;min-width:740px;
 }
+.cg-body{display:contents;}
 .the{background:var(–s2);}
 .dhdr{background:var(–s2);padding:10px 6px;text-align:center;}
 .dhdr.wk{background:#ddd8ce;}
@@ -73,12 +74,12 @@ background:var(–border);gap:1px;min-width:740px;
 .tcol{background:var(–s2);}
 .ts{display:flex;align-items:flex-start;justify-content:flex-end;padding:3px 6px 0;}
 .ts span{font-family:‘DM Mono’,monospace;font-size:8px;color:var(–muted);}
-.dcol{position:relative;background:var(–surface);}
+.dcol{position:relative;background:var(–surface);border-right:1px solid var(–border);overflow:visible;}
+.dcol:last-child{border-right:none;}
 .dcol.wk{background:#f7f4ee;}
-.hl{position:absolute;left:0;right:0;border-bottom:1px solid var(–border);pointer-events:none;}
+.hl{position:absolute;left:0;right:0;border-bottom:1px solid var(–border);pointer-events:none;z-index:0;}
 .hl.hr{border-color:var(–s2);}
-/* desktop event */
-.ev{position:absolute;left:2px;right:2px;border-radius:4px;padding:3px 6px;cursor:pointer;overflow:hidden;border-left:3px solid transparent;transition:filter .15s;}
+.ev{position:absolute;left:2px;right:2px;border-radius:4px;padding:4px 6px;cursor:pointer;overflow:hidden;border-left:3px solid transparent;transition:filter .15s;z-index:1;}
 .ev:hover{filter:brightness(.92);}
 .evl{font-family:‘DM Mono’,monospace;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .evt{font-size:8px;opacity:.65;margin-top:1px;}
@@ -336,14 +337,13 @@ function gwd(off){
 // ── DESKTOP ──────────────────────────────────────────────────────
 function rDesk(){
   var dates=gwd(wkOff);
-  var mo=dates[0].getMonth();
   document.getElementById('hdrTitle').textContent='Semana de '+fmt(dates[0])+' a '+fmt(dates[6]);
   document.getElementById('rlbl').textContent=fmt(dates[0])+' – '+fmt(dates[6]);
 
   var grid=document.getElementById('dg');grid.innerHTML='';
   var tot=SLOTS.length;
 
-  // header
+  // ── header row: empty corner + 7 day headers ──
   var the=document.createElement('div');the.className='the';grid.appendChild(the);
   for(var d=0;d<7;d++){
     var dh=document.createElement('div');
@@ -352,43 +352,61 @@ function rDesk(){
     grid.appendChild(dh);
   }
 
-  // time col
-  var tc=document.createElement('div');tc.className='tcol';tc.style.height=(tot*RH)+'px';
+  // ── time col: fixed height container ──
+  var tc=document.createElement('div');tc.className='tcol';
+  tc.style.cssText='height:'+(tot*RH)+'px;position:relative;';
   SLOTS.forEach(function(t,i){
-    var ts=document.createElement('div');ts.className='ts';ts.style.height=RH+'px';
-    if(i%2===0)ts.innerHTML='<span>'+t+'</span>';tc.appendChild(ts);
+    var ts=document.createElement('div');
+    ts.className='ts';
+    ts.style.cssText='position:absolute;top:'+(i*RH)+'px;height:'+RH+'px;width:100%;';
+    if(i%2===0)ts.innerHTML='<span>'+t+'</span>';
+    tc.appendChild(ts);
   });
   grid.appendChild(tc);
 
-  // day cols
+  // ── day cols ──
   for(var d=0;d<7;d++){
-    var col=document.createElement('div');col.className='dcol'+(d>=5?' wk':'');col.style.height=(tot*RH)+'px';
-    // grid lines
+    var col=document.createElement('div');
+    col.className='dcol'+(d>=5?' wk':'');
+    col.style.cssText='height:'+(tot*RH)+'px;position:relative;';
+
+    // horizontal lines
     for(var i=0;i<tot;i++){
-      var ln=document.createElement('div');ln.className='hl'+(i%2===0?' hr':'');ln.style.top=(i*RH)+'px';col.appendChild(ln);
+      var ln=document.createElement('div');
+      ln.className='hl'+(i%2===0?' hr':'');
+      ln.style.cssText='top:'+(i*RH)+'px;height:'+RH+'px;';
+      col.appendChild(ln);
     }
+
     // events
     var devs=getDayEvents(dk(dates[d]));
     var occ=new Array(tot).fill(false);
     devs.forEach(function(ev){
-      var s=si(ev.start),e=si(ev.end);if(e<=s)e=s+1;
-      for(var i=s;i<e&&i<tot;i++)occ[i]=true;
-      var hp=Math.max((e-s)*RH-3,RH-3);
-      var el=document.createElement('div');el.className='ev '+(ev.cat||'outro');
-      el.style.cssText='top:'+(s*RH+1)+'px;height:'+hp+'px;';
-      el.setAttribute('data-dky',dk(dates[d]));el.setAttribute('data-id',ev.id);
+      var s=si(ev.start), e=si(ev.end);
+      if(e<=s) e=s+1;
+      for(var i=s;i<e&&i<tot;i++) occ[i]=true;
+      var topPx = s*RH+1;
+      var hPx   = (e-s)*RH-2;
+      if(hPx<RH-2) hPx=RH-2;
+      var el=document.createElement('div');
+      el.className='ev '+(ev.cat||'outro');
+      el.style.cssText='top:'+topPx+'px;height:'+hPx+'px;';
+      el.setAttribute('data-dky',dk(dates[d]));
+      el.setAttribute('data-id',ev.id);
       el.onclick=function(){openModal(this.getAttribute('data-dky'),this.getAttribute('data-id'),null);};
-      el.innerHTML='<div class="evl">'+esc(ev.title)+'</div>'+(hp>RH?'<div class="evt">'+ev.start+'–'+ev.end+'</div>':'');
+      el.innerHTML='<div class="evl">'+esc(ev.title)+'</div>'+(hPx>RH?'<div class="evt">'+ev.start+'–'+ev.end+'</div>':'');
       col.appendChild(el);
     });
-    // add slot overlays
+
+    // empty slot overlays
     for(var i=0;i<tot;i++){
       if(!occ[i]){
         (function(si2,di){
-          var sl=document.createElement('div');sl.className='asl';sl.style.cssText='top:'+(si2*RH)+'px;height:'+RH+'px;';
+          var sl=document.createElement('div');sl.className='asl';
+          sl.style.cssText='top:'+(si2*RH)+'px;height:'+RH+'px;';
           sl.innerHTML='<span>+ evento</span>';
-          sl.onclick=function(e){
-            e.stopPropagation();
+          sl.onclick=function(ev2){
+            ev2.stopPropagation();
             openModal(dk(dates[di]),null,SLOTS[si2]);
           };
           col.appendChild(sl);
