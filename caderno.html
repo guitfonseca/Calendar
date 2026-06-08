@@ -12,6 +12,13 @@
   --accent: #d4a84b; --accent2: #7aa6c2;
   --c-aula: #7aa6c2; --c-idioma: #d98ba8; --c-trabalho: #d4a84b; --c-pessoal: #8fc28f; --c-outro: #a89bd4;
 }
+body[data-theme="light"] {
+  --bg: #f4f1ea; --panel: #ffffff; --panel2: #ece8df; --line: #d8d2c4;
+  --text: #2a2620; --muted: #767066; --dim: #a39c8e;
+  --accent: #b07d1a; --accent2: #3a6f93;
+  --c-aula: #3a6f93; --c-idioma: #b85a7d; --c-trabalho: #b07d1a; --c-pessoal: #4f8f4f; --c-outro: #6f5fb0;
+}
+body[data-theme="light"] .editor .codeblock pre { background: #2a2620; color: #e6e3dc; border-color: #2a2620; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; overflow: hidden; }
 .app { display: flex; height: 100vh; }
@@ -43,6 +50,8 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .nb-plus { color: var(--dim); font-size: 14px; opacity: 0; padding: 0 4px; }
 .nb:hover .nb-plus { opacity: 1; }
 .nb-plus:hover { color: var(--accent); }
+.nb-del { font-size: 11px; }
+.nb-del:hover { color: #c97b7b; }
 .sub { padding-left: 22px; }
 .sub .nb { padding-left: 14px; }
 .sub .nb-name { font-size: 12.5px; color: var(--muted); }
@@ -145,8 +154,13 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 <div class="app">
   <div class="side" id="side">
     <div class="side-top">
-      <div class="brand">Caderno<span>.</span></div>
-      <div class="brand-sub">Anotações 2026</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div class="brand">Caderno<span>.</span></div>
+          <div class="brand-sub">Anotações 2026</div>
+        </div>
+        <button id="themeBtn" onclick="toggleTheme()" title="Tema claro/escuro" style="background:var(--panel2);border:1px solid var(--line);color:var(--muted);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:15px;">🌙</button>
+      </div>
     </div>
     <div class="searchbox"><input id="search" type="text" placeholder="🔍 Buscar em tudo..."></div>
     <div class="sec-lbl">Cadernos <button onclick="openNbModal(null)">+</button></div>
@@ -281,13 +295,16 @@ function renderSide() {
       '<div class="nb-dot" style="background:'+nb.color+'" onclick="selNb(\''+nb.id+'\')"></div>'+
       '<div class="nb-name" onclick="selNb(\''+nb.id+'\')">'+esc(nb.name)+'</div>'+
       '<div class="nb-plus" onclick="event.stopPropagation();openNbModal(\''+nb.id+'\')" title="Add sub-caderno">+</div>'+
+      '<div class="nb-plus nb-del" onclick="event.stopPropagation();delNb(\''+nb.id+'\')" title="Apagar caderno">🗑</div>'+
       '<div class="nb-count">'+countNotes(nb.id)+'</div></div>';
     if (kids.length && op) {
       html += '<div class="sub">';
       kids.forEach(function(k){
         html += '<div class="nb '+(curNb===k.id?'act':'')+'" onclick="selNb(\''+k.id+'\')">'+
           '<div class="nb-arrow leaf"></div><div class="nb-dot" style="background:'+k.color+';opacity:.7"></div>'+
-          '<div class="nb-name">'+esc(k.name)+'</div><div class="nb-count">'+countNotes(k.id)+'</div></div>';
+          '<div class="nb-name">'+esc(k.name)+'</div>'+
+          '<div class="nb-plus nb-del" onclick="event.stopPropagation();delNb(\''+k.id+'\')" title="Apagar">🗑</div>'+
+          '<div class="nb-count">'+countNotes(k.id)+'</div></div>';
       });
       html += '</div>';
     }
@@ -295,6 +312,28 @@ function renderSide() {
   list.innerHTML = html;
 }
 function toggleExp(id){ data.expanded[id]=!data.expanded[id]; save(); renderSide(); }
+
+function delNb(id){
+  var nb = data.notebooks.find(function(n){return n.id===id;}); if(!nb) return;
+  var ids = descendants(id);
+  var nCount = data.notes.filter(function(n){ return ids.indexOf(n.nb)>=0; }).length;
+  var kids = data.notebooks.filter(function(n){ return n.parent===id; }).length;
+  var msg = 'Apagar o caderno "'+nb.name+'"?';
+  if (kids) msg += '\n\nIsso também apaga '+kids+' sub-caderno(s).';
+  if (nCount) msg += '\n\n⚠️ '+nCount+' nota(s) serão apagadas permanentemente.';
+  if (!confirm(msg)) return;
+  data.notebooks = data.notebooks.filter(function(n){ return ids.indexOf(n.id)<0; });
+  data.notes = data.notes.filter(function(n){ return ids.indexOf(n.nb)<0; });
+  ids.forEach(function(i){ delete data.expanded[i]; });
+  if (ids.indexOf(curNb)>=0) { curNb='all'; document.getElementById('colTitle').textContent='Todas'; }
+  if (curNote && !data.notes.find(function(n){return n.id===curNote;})) {
+    curNote=null;
+    document.getElementById('edWrap').style.display='none';
+    document.getElementById('noNote').style.display='flex';
+    document.getElementById('main').classList.remove('show-editor');
+  }
+  save(); renderSide(); renderNotes();
+}
 
 function selNb(id){
   curNb=id;
@@ -505,6 +544,20 @@ function toggleSide(){ document.getElementById('side').classList.toggle('open');
 document.getElementById('nbModal').addEventListener('click',function(e){ if(e.target===this)closeNbModal(); });
 document.getElementById('tagModal').addEventListener('click',function(e){ if(e.target===this)closeTagModal(); });
 document.getElementById('nbName').addEventListener('keydown',function(e){ if(e.key==='Enter')saveNb(); });
+
+function toggleTheme(){
+  var cur = document.body.getAttribute('data-theme')==='light' ? 'dark' : 'light';
+  applyTheme(cur);
+  try { localStorage.setItem('caderno_theme', cur); } catch(e) {}
+}
+function applyTheme(t){
+  if(t==='light') document.body.setAttribute('data-theme','light');
+  else document.body.removeAttribute('data-theme');
+  document.getElementById('themeBtn').textContent = t==='light' ? '☀️' : '🌙';
+}
+var savedTheme = 'dark';
+try { savedTheme = localStorage.getItem('caderno_theme') || 'dark'; } catch(e) {}
+applyTheme(savedTheme);
 
 renderSide(); renderNotes();
 </script>
